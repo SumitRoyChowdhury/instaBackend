@@ -18,5 +18,14 @@ model User {
   fullname String
   bio String?
   createdAt DateTime @default(now())
+}
 
+
+model Post{
+  id Int @id @default(autoincrement())
+  imageUrl String
+  caption String?
+  location String?
+  createdAt DateTime
+  updateAt DateTime
 }
