@@ -19,9 +19,15 @@ function listPosts({ page, limit, sortBy, order, location, search, from, to }) {
   return prisma.$transaction([
     prisma.post.findMany({
       where,
-      orderBy: { [sortBy]: order },
+      orderBy: sortBy === "likes"
+        ? [{ likes: { _count: order } }, { createdAt: "desc" }]
+        : { [sortBy]: order },
       skip: (page - 1) * limit,
       take: limit,
+      include: {
+        author: { select: { id: true, username: true, fullname: true } },
+        _count: { select: { likes: true } },
+      },
     }),
     prisma.post.count({ where }),
   ]).then(([data, total]) => ({
@@ -31,7 +37,25 @@ function listPosts({ page, limit, sortBy, order, location, search, from, to }) {
 }
 
 function getPostById(id) {
-  return prisma.post.findUnique({ where: { id } });
+  return prisma.post.findUnique({
+    where: { id },
+    include: {
+      author: { select: { id: true, username: true, fullname: true } },
+      _count: { select: { likes: true } },
+    },
+  });
+}
+
+function getPostLikers(id) {
+  return prisma.post.findUnique({
+    where: { id },
+    select: {
+      likes: {
+        orderBy: { user: { username: "asc" } },
+        select: { user: { select: { id: true, username: true, fullname: true } } },
+      },
+    },
+  });
 }
 
 function updatePost(id, data) {
@@ -42,4 +66,4 @@ function deletePost(id) {
   return prisma.post.delete({ where: { id } });
 }
 
-module.exports = { createPost, listPosts, getPostById, updatePost, deletePost };
+module.exports = { createPost, listPosts, getPostById, getPostLikers, updatePost, deletePost };

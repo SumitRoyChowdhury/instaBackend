@@ -1,28 +1,28 @@
 const postsService = require("../services/posts.service");
+const parsePagination = require("../utils/pagination");
 
 async function create(req, res) {
-  const { imageUrl, caption, location } = req.body ?? {};
-  if (typeof imageUrl !== "string" || !imageUrl.trim()) {
-    return res.status(400).json({ error: "imageUrl is required" });
+  const { imageUrl, authorId, caption, location } = req.body ?? {};
+  if (typeof imageUrl !== "string" || !imageUrl.trim() || authorId === undefined || authorId === null) {
+    return res.status(400).json({ error: "imageUrl and authorId are required" });
   }
+  if (!Number.isInteger(authorId) || authorId < 1) return res.status(404).json({ error: "User not found" });
   try {
-    return res.status(201).json(await postsService.createPost({ imageUrl, caption, location }));
+    return res.status(201).json(await postsService.createPost({ imageUrl, authorId, caption, location }));
   } catch (error) {
+    if (error.code === "P2003") return res.status(404).json({ error: "User not found" });
     return res.status(500).json({ error: "Internal server error" });
   }
 }
 
 async function list(req, res) {
-  const { page: pageParam, limit: limitParam, sortBy, order, location, search, from, to } = req.query;
-  const page = pageParam === undefined ? 1 : Number(pageParam);
-  const requestedLimit = limitParam === undefined ? 10 : Number(limitParam);
-  const isPositiveInteger = (value) => typeof value === "string" && /^[1-9]\d*$/.test(value);
-  if ((pageParam !== undefined && !isPositiveInteger(pageParam)) ||
-      (limitParam !== undefined && !isPositiveInteger(limitParam))) {
+  const { sortBy, order, location, search, from, to } = req.query;
+  const pagination = parsePagination(req.query);
+  if (!pagination) {
     return res.status(400).json({ error: "page and limit must be positive integers" });
   }
-  if (sortBy !== undefined && !["createdAt", "updatedAt"].includes(sortBy)) {
-    return res.status(400).json({ error: "sortBy must be one of: createdAt, updatedAt" });
+  if (sortBy !== undefined && !["createdAt", "updatedAt", "likes"].includes(sortBy)) {
+    return res.status(400).json({ error: "sortBy must be one of: createdAt, updatedAt, likes" });
   }
   if (order !== undefined && !["asc", "desc"].includes(order)) {
     return res.status(400).json({ error: "order must be asc or desc" });
@@ -38,8 +38,7 @@ async function list(req, res) {
 
   try {
     const result = await postsService.listPosts({
-      page,
-      limit: Math.min(requestedLimit, 50),
+      ...pagination,
       sortBy: sortBy ?? "createdAt",
       order: order ?? "desc",
       location: typeof location === "string" ? location : undefined,
@@ -48,6 +47,18 @@ async function list(req, res) {
       to: to === undefined ? undefined : new Date(to),
     });
     return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function likers(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(404).json({ error: "Post not found" });
+  try {
+    const post = await postsService.getPostLikers(id);
+    if (!post) return res.status(404).json({ error: "Post not found" });
+    return res.status(200).json(post.likes.map((like) => like.user));
   } catch (error) {
     return res.status(500).json({ error: "Internal server error" });
   }
@@ -91,4 +102,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { create, list, getOne, update, remove };
+module.exports = { create, list, getOne, likers, update, remove };

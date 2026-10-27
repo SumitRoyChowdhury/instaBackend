@@ -1,4 +1,5 @@
 const usersService = require("../services/users.service");
+const parsePagination = require("../utils/pagination");
 
 async function create(req, res) {
   const { username, email, fullname, bio } = req.body ?? {};
@@ -18,12 +19,9 @@ async function create(req, res) {
 }
 
 async function list(req, res) {
-  const { page: pageParam, limit: limitParam, sortBy, order, isPrivate, search } = req.query;
-  const page = pageParam === undefined ? 1 : Number(pageParam);
-  const requestedLimit = limitParam === undefined ? 10 : Number(limitParam);
-  const isPositiveInteger = (value) => typeof value === "string" && /^[1-9]\d*$/.test(value);
-  if ((pageParam !== undefined && !isPositiveInteger(pageParam)) ||
-      (limitParam !== undefined && !isPositiveInteger(limitParam))) {
+  const { sortBy, order, isPrivate, hasPosts, search } = req.query;
+  const pagination = parsePagination(req.query);
+  if (!pagination) {
     return res.status(400).json({ error: "page and limit must be positive integers" });
   }
   if (sortBy !== undefined && !["createdAt", "username", "fullname"].includes(sortBy)) {
@@ -35,17 +33,50 @@ async function list(req, res) {
   if (isPrivate !== undefined && !["true", "false"].includes(isPrivate)) {
     return res.status(400).json({ error: "isPrivate must be true or false" });
   }
+  if (hasPosts !== undefined && !["true", "false"].includes(hasPosts)) {
+    return res.status(400).json({ error: "hasPosts must be true or false" });
+  }
 
   try {
     const result = await usersService.listUsers({
-      page,
-      limit: Math.min(requestedLimit, 50),
+      ...pagination,
       sortBy: sortBy ?? "createdAt",
       order: order ?? "desc",
       isPrivate: isPrivate === undefined ? undefined : isPrivate === "true",
+      hasPosts: hasPosts === undefined ? undefined : hasPosts === "true",
       search: typeof search === "string" ? search : undefined,
     });
     return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function listPosts(req, res) {
+  const id = Number(req.params.id);
+  const pagination = parsePagination(req.query);
+  if (!pagination) return res.status(400).json({ error: "page and limit must be positive integers" });
+  if (!Number.isInteger(id)) return res.status(404).json({ error: "User not found" });
+
+  try {
+    const user = await usersService.getUserById(id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    return res.status(200).json(await usersService.listUserPosts(id, pagination));
+  } catch (error) {
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function likedPosts(req, res) {
+  const id = Number(req.params.id);
+  const pagination = parsePagination(req.query);
+  if (!pagination) return res.status(400).json({ error: "page and limit must be positive integers" });
+  if (!Number.isInteger(id)) return res.status(404).json({ error: "User not found" });
+
+  try {
+    const user = await usersService.getUserById(id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    return res.status(200).json(await usersService.listLikedPosts(id, pagination));
   } catch (error) {
     return res.status(500).json({ error: "Internal server error" });
   }
@@ -89,4 +120,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { create, list, getOne, update, remove };
+module.exports = { create, list, getOne, listPosts, likedPosts, update, remove };
