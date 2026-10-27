@@ -1,4 +1,3 @@
--- CreateTable
 CREATE TABLE "Post" (
     "id" SERIAL NOT NULL,
     "imageUrl" TEXT NOT NULL,

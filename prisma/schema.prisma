@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,20 +7,21 @@ datasource db {
 }
 
 model User {
-  id    Int   @id   @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   username  String
-  email String
-  fullname String
-  bio String?
+  email     String
+  fullname  String
+  bio       String?
+  isPrivate Boolean  @default(false)
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-
-model Post{
-  id Int @id @default(autoincrement())
-  imageUrl String
-  caption String?
-  location String?
-  createdAt DateTime
-  updateAt DateTime
+model Post {
+  id        Int      @id @default(autoincrement())
+  imageUrl  String
+  caption   String?
+  location  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
