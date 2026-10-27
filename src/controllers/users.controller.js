@@ -18,8 +18,34 @@ async function create(req, res) {
 }
 
 async function list(req, res) {
+  const { page: pageParam, limit: limitParam, sortBy, order, isPrivate, search } = req.query;
+  const page = pageParam === undefined ? 1 : Number(pageParam);
+  const requestedLimit = limitParam === undefined ? 10 : Number(limitParam);
+  const isPositiveInteger = (value) => typeof value === "string" && /^[1-9]\d*$/.test(value);
+  if ((pageParam !== undefined && !isPositiveInteger(pageParam)) ||
+      (limitParam !== undefined && !isPositiveInteger(limitParam))) {
+    return res.status(400).json({ error: "page and limit must be positive integers" });
+  }
+  if (sortBy !== undefined && !["createdAt", "username", "fullname"].includes(sortBy)) {
+    return res.status(400).json({ error: "sortBy must be one of: createdAt, username, fullname" });
+  }
+  if (order !== undefined && !["asc", "desc"].includes(order)) {
+    return res.status(400).json({ error: "order must be asc or desc" });
+  }
+  if (isPrivate !== undefined && !["true", "false"].includes(isPrivate)) {
+    return res.status(400).json({ error: "isPrivate must be true or false" });
+  }
+
   try {
-    return res.status(200).json(await usersService.listUsers());
+    const result = await usersService.listUsers({
+      page,
+      limit: Math.min(requestedLimit, 50),
+      sortBy: sortBy ?? "createdAt",
+      order: order ?? "desc",
+      isPrivate: isPrivate === undefined ? undefined : isPrivate === "true",
+      search: typeof search === "string" ? search : undefined,
+    });
+    return res.status(200).json(result);
   } catch (error) {
     return res.status(500).json({ error: "Internal server error" });
   }

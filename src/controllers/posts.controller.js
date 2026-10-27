@@ -13,8 +13,41 @@ async function create(req, res) {
 }
 
 async function list(req, res) {
+  const { page: pageParam, limit: limitParam, sortBy, order, location, search, from, to } = req.query;
+  const page = pageParam === undefined ? 1 : Number(pageParam);
+  const requestedLimit = limitParam === undefined ? 10 : Number(limitParam);
+  const isPositiveInteger = (value) => typeof value === "string" && /^[1-9]\d*$/.test(value);
+  if ((pageParam !== undefined && !isPositiveInteger(pageParam)) ||
+      (limitParam !== undefined && !isPositiveInteger(limitParam))) {
+    return res.status(400).json({ error: "page and limit must be positive integers" });
+  }
+  if (sortBy !== undefined && !["createdAt", "updatedAt"].includes(sortBy)) {
+    return res.status(400).json({ error: "sortBy must be one of: createdAt, updatedAt" });
+  }
+  if (order !== undefined && !["asc", "desc"].includes(order)) {
+    return res.status(400).json({ error: "order must be asc or desc" });
+  }
+  const isValidDate = (value) => {
+    if (typeof value !== "string" || Number.isNaN(Date.parse(value))) return false;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return true;
+    return new Date(value).toISOString().slice(0, 10) === value;
+  };
+  if ((from !== undefined && !isValidDate(from)) || (to !== undefined && !isValidDate(to))) {
+    return res.status(400).json({ error: "from and to must be valid dates" });
+  }
+
   try {
-    return res.status(200).json(await postsService.listPosts());
+    const result = await postsService.listPosts({
+      page,
+      limit: Math.min(requestedLimit, 50),
+      sortBy: sortBy ?? "createdAt",
+      order: order ?? "desc",
+      location: typeof location === "string" ? location : undefined,
+      search: typeof search === "string" ? search : undefined,
+      from: from === undefined ? undefined : new Date(from),
+      to: to === undefined ? undefined : new Date(to),
+    });
+    return res.status(200).json(result);
   } catch (error) {
     return res.status(500).json({ error: "Internal server error" });
   }
